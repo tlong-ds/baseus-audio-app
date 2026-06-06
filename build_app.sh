@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-APP_DIR="BaseusH1S.app"
+APP_DIR="Baseus.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
 RESOURCES_DIR="$APP_DIR/Contents/Resources"
 
@@ -9,22 +9,22 @@ mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
 
 # Compile App Icon Assets (Dark/Light mode support for macOS Sequoia)
-if [ -d "Assets.xcassets" ]; then
-    actool --compile "$RESOURCES_DIR" --platform macosx --minimum-deployment-target 11.0 --app-icon AppIcon --output-partial-info-plist partial.plist Assets.xcassets
+if [ -d "Resources/Assets.xcassets" ]; then
+    actool --compile "$RESOURCES_DIR" --platform macosx --minimum-deployment-target 11.0 --app-icon AppIcon --output-partial-info-plist partial.plist Resources/Assets.xcassets
 fi
 
 # Copy App Icon fallback (.icns)
-if [ -f "AppIcon.icns" ]; then
-    cp AppIcon.icns "$RESOURCES_DIR/"
+if [ -f "Resources/AppIcon.icns" ]; then
+    cp Resources/AppIcon.icns "$RESOURCES_DIR/"
 fi
 
 # Copy Menubar Icon
-if [ -f "MenubarIconTemplate.png" ]; then
-    cp MenubarIconTemplate.png "$RESOURCES_DIR/"
+if [ -f "Resources/MenubarIconTemplate.png" ]; then
+    cp Resources/MenubarIconTemplate.png "$RESOURCES_DIR/"
 fi
 
-# Compile the Swift file
-swiftc BaseusController.swift -o "$MACOS_DIR/BaseusH1S"
+# Compile the Swift files
+swiftc $(find Sources -name "*.swift") -o "$MACOS_DIR/Baseus"
 
 # Create Info.plist
 cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
@@ -33,15 +33,15 @@ cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>BaseusH1S</string>
+    <string>Baseus</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.bunnypro.BaseusH1S</string>
+    <string>com.bunnypro.Baseus</string>
     <key>CFBundleName</key>
-    <string>BaseusH1S</string>
+    <string>Baseus</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSUIElement</key>

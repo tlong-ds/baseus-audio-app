@@ -1,0 +1,29 @@
+name: Release macOS App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build App
+        run: bash ./build_app.sh
+
+      - name: Zip App
+        run: zip -r Baseus.zip Baseus.app
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Baseus.zip
+          generate_release_notes: true
