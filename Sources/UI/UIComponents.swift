@@ -107,7 +107,7 @@ class SlidingPillControl: NSControl {
         }
     }
     
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect, leftIconName: String, rightIconName: String) {
         super.init(frame: frameRect)
         
         // Glass background
@@ -143,13 +143,13 @@ class SlidingPillControl: NSControl {
         let rightX = segmentWidth + segmentWidth / 2 - iconSize / 2
         
         leftIcon = NSImageView(frame: NSRect(x: leftX, y: iconY, width: iconSize, height: iconSize))
-        leftIcon.image = NSImage(systemSymbolName: "person.wave.2.fill", accessibilityDescription: nil)
+        leftIcon.image = NSImage(systemSymbolName: leftIconName, accessibilityDescription: nil)
         leftIcon.imageScaling = .scaleProportionallyUpOrDown
         leftIcon.wantsLayer = true
         addSubview(leftIcon)
         
         rightIcon = NSImageView(frame: NSRect(x: rightX, y: iconY, width: iconSize, height: iconSize))
-        rightIcon.image = NSImage(systemSymbolName: "waveform.path.badge.minus", accessibilityDescription: nil)
+        rightIcon.image = NSImage(systemSymbolName: rightIconName, accessibilityDescription: nil)
         rightIcon.imageScaling = .scaleProportionallyUpOrDown
         rightIcon.wantsLayer = true
         addSubview(rightIcon)
@@ -218,5 +218,42 @@ class SlidingPillControl: NSControl {
         CATransaction.setDisableActions(true)
         thumbLayer.frame.origin.x = x
         CATransaction.commit()
+    }
+}
+
+class SwitchMenuItemView: NSView {
+    weak var menuItem: NSMenuItem?
+    let titleLabel = NSTextField(labelWithString: "")
+    let toggleSwitch = NSSwitch()
+    
+    init(title: String, item: NSMenuItem) {
+        self.menuItem = item
+        super.init(frame: NSRect(x: 0, y: 0, width: 260, height: 30))
+        
+        titleLabel.stringValue = title
+        titleLabel.font = NSFont.menuBarFont(ofSize: 13)
+        titleLabel.isBezeled = false
+        titleLabel.drawsBackground = false
+        titleLabel.isEditable = false
+        titleLabel.frame = NSRect(x: 20, y: 6, width: 180, height: 18)
+        addSubview(titleLabel)
+        
+        toggleSwitch.target = self
+        toggleSwitch.action = #selector(switchChanged)
+        toggleSwitch.frame = NSRect(x: 200, y: 5, width: 40, height: 20)
+        addSubview(toggleSwitch)
+    }
+    
+    required init?(coder: NSCoder) { fatalError() }
+    
+    @objc func switchChanged() {
+        if let item = menuItem, let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+        }
+    }
+    
+    var isOn: Bool {
+        get { return toggleSwitch.state == .on }
+        set { toggleSwitch.state = newValue ? .on : .off }
     }
 }

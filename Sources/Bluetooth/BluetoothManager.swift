@@ -29,6 +29,18 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     func startScanning() {
         if peripheral == nil {
             print("Scanning for Baseus H1S...")
+            
+            // 1. Check if it's already connected to the Mac's system Bluetooth
+            let connectedPeripherals = centralManager.retrieveConnectedPeripherals(withServices: [serviceUUID])
+            if let connected = connectedPeripherals.first {
+                print("Found already connected device: \(connected.name ?? "device")")
+                self.peripheral = connected
+                self.peripheral?.delegate = self
+                centralManager.connect(connected, options: nil)
+                return
+            }
+            
+            // 2. Otherwise scan for it
             centralManager.scanForPeripherals(withServices: [serviceUUID], options: nil)
         }
     }

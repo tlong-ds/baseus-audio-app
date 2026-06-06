@@ -46,6 +46,8 @@ cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
     <string>APPL</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAccentColorName</key>
+    <string>AccentColor</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Needed to connect to and control Baseus headphones</string>
 </dict>

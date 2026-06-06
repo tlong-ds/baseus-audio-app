@@ -7,6 +7,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let menu = NSMenu()
     var statusMenuItem: NSMenuItem!
     var slidingPill: SlidingPillControl!
+    var bassBoostSwitch: SwitchMenuItemView!
+    var ldacSwitch: SwitchMenuItemView!
+    
+    var lastBassBoostTime = Date.distantPast
+    var lastSpatialTime = Date.distantPast
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -65,8 +70,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(statusMenuItem)
         menu.addItem(NSMenuItem.separator())
         
-        // 2. Airpods-style Pill control
-        setupIOSStyleControl()
+        // 2. Airpods-style Pill controls
+        slidingPill = addPillToggle(
+            leftLabelText: "Transparency", rightLabelText: "Noise Canc.",
+            leftIcon: "person.wave.2.fill", rightIcon: "waveform.path.badge.minus",
+            action: #selector(noiseControlChanged)
+        )
         menu.addItem(NSMenuItem.separator())
         
         // 3. Noise Profiles
@@ -90,6 +99,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
+        // 5. Settings / Toggles
+        let togglesTitle = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        togglesTitle.isEnabled = false
+        menu.addItem(togglesTitle)
+        
+        bassBoostSwitch = addSwitchToggle(title: "Bass Boost", action: #selector(bassBoostChanged))
+        ldacSwitch = addSwitchToggle(title: "LDAC", action: #selector(ldacChanged))
+        
+        menu.addItem(NSMenuItem.separator())
+        
         let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         let quitView = ProfileMenuItemView(title: "Quit", icon: "power", item: quitItem)
@@ -108,10 +127,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let savedANCIndex = defaults.integer(forKey: "savedANCIndex")
         let savedANCHex = defaults.string(forKey: "savedANCHex") ?? "BA340166"
         let savedEQHex = defaults.string(forKey: "savedEQHex") ?? "BA4300"
+        let savedBassBoost = defaults.bool(forKey: "savedBassBoost")
+        let savedLDAC = defaults.bool(forKey: "savedLDAC")
         
         slidingPill.setSelectedIndex(savedANCIndex, sendAction: false)
         updateMenuState(ancHex: savedANCHex, eqHex: savedEQHex)
         updateProfileEnabling()
+        
+        bassBoostSwitch.isOn = savedBassBoost
+        ldacSwitch.isOn = savedLDAC
         
         btManager.onConnectionStateChanged = { [weak self] connected in
             self?.statusMenuItem.title = connected ? "Status: Connected" : "Status: Disconnected"
@@ -168,29 +192,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.updateProfileEnabling()
                 }
             }
-            // Spatial Audio / EQ update
+            // Spatial Audio update
             else if bytes[1] == 0x43 && bytes.count >= 3 {
-                let hex = String(format: "BA43%02X", bytes[2])
-                self.updateMenuState(eqHex: hex)
-                self.saveProfileState(ancIndex: nil, ancHex: nil, eqHex: hex)
+                if Date().timeIntervalSince(self.lastSpatialTime) > 1.0 {
+                    // External tap cycle
+                    let currentHex = UserDefaults.standard.string(forKey: "savedEQHex") ?? "BA4300"
+                    let nextHex: String
+                    if currentHex == "BA4300" { nextHex = "BA4301" }
+                    else if currentHex == "BA4301" { nextHex = "BA4302" }
+                    else { nextHex = "BA4300" }
+                    
+                    self.updateMenuState(eqHex: nextHex)
+                    self.saveProfileState(ancIndex: nil, ancHex: nil, eqHex: nextHex)
+                }
+            }
+            // Bass Boost update
+            else if bytes[1] == 0x54 && bytes.count >= 3 {
+                if Date().timeIntervalSince(self.lastBassBoostTime) > 1.0 {
+                    let newState = !self.bassBoostSwitch.isOn
+                    self.bassBoostSwitch.isOn = newState
+                    UserDefaults.standard.set(newState, forKey: "savedBassBoost")
+                }
+            }
+            // LDAC update
+            else if bytes[1] == 0x23 && bytes.count >= 3 {
+                let isOn = bytes[2] == 0x01
+                self.ldacSwitch.isOn = isOn
+                UserDefaults.standard.set(isOn, forKey: "savedLDAC")
             }
         }
     }
     
-    func setupIOSStyleControl() {
+    func addSwitchToggle(title: String, action: Selector) -> SwitchMenuItemView {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        let switchView = SwitchMenuItemView(title: title, item: item)
+        item.view = switchView
+        menu.addItem(item)
+        return switchView
+    }
+    
+    func addPillToggle(leftLabelText: String, rightLabelText: String, leftIcon: String, rightIcon: String, action: Selector) -> SlidingPillControl {
         let viewWidth: CGFloat = 260
         let viewHeight: CGFloat = 70
         let customView = NSView(frame: NSRect(x: 0, y: 0, width: viewWidth, height: viewHeight))
         
-        slidingPill = SlidingPillControl(frame: NSRect(x: 20, y: 25, width: viewWidth - 40, height: 36))
-        slidingPill.target = self
-        slidingPill.action = #selector(noiseControlChanged)
-        customView.addSubview(slidingPill)
+        let pill = SlidingPillControl(frame: NSRect(x: 20, y: 25, width: viewWidth - 40, height: 36), leftIconName: leftIcon, rightIconName: rightIcon)
+        pill.target = self
+        pill.action = action
+        customView.addSubview(pill)
         
         let segmentWidth = (viewWidth - 40) / 2
         
-        // Labels
-        let leftLabel = NSTextField(labelWithString: "Transparency")
+        let leftLabel = NSTextField(labelWithString: leftLabelText)
         leftLabel.font = NSFont.systemFont(ofSize: 11)
         leftLabel.textColor = .secondaryLabelColor
         leftLabel.alignment = .center
@@ -200,7 +254,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         leftLabel.frame = NSRect(x: 20, y: 5, width: segmentWidth, height: 15)
         customView.addSubview(leftLabel)
         
-        let rightLabel = NSTextField(labelWithString: "Noise Canc.")
+        let rightLabel = NSTextField(labelWithString: rightLabelText)
         rightLabel.font = NSFont.systemFont(ofSize: 11)
         rightLabel.textColor = .secondaryLabelColor
         rightLabel.alignment = .center
@@ -213,6 +267,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menuItem = NSMenuItem()
         menuItem.view = customView
         menu.addItem(menuItem)
+        
+        return pill
     }
     
     @objc func noiseControlChanged() {
@@ -283,6 +339,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 updateMenuState(ancHex: hex)
                 updateProfileEnabling()
             } else if hex.hasPrefix("BA43") {
+                lastSpatialTime = Date()
                 updateMenuState(eqHex: hex)
                 saveProfileState(ancIndex: nil, ancHex: nil, eqHex: hex)
             }
@@ -294,5 +351,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let ancIndex = ancIndex { defaults.set(ancIndex, forKey: "savedANCIndex") }
         if let ancHex = ancHex { defaults.set(ancHex, forKey: "savedANCHex") }
         if let eqHex = eqHex { defaults.set(eqHex, forKey: "savedEQHex") }
+    }
+    
+    @objc func bassBoostChanged() {
+        let isOn = bassBoostSwitch.isOn
+        UserDefaults.standard.set(isOn, forKey: "savedBassBoost")
+        lastBassBoostTime = Date()
+        btManager.sendCommand(hexString: isOn ? "BA5401" : "BA5400")
+    }
+    
+    @objc func ldacChanged() {
+        let isOn = ldacSwitch.isOn
+        UserDefaults.standard.set(isOn, forKey: "savedLDAC")
+        btManager.sendCommand(hexString: isOn ? "BA2401" : "BA2400")
     }
 }
