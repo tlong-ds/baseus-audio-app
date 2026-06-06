@@ -43,7 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // Dynamic image that evaluates on every render
                 let dynamicImage = NSImage(size: size, flipped: false) { rect in
-                    let isDark = NSAppearance.current.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                    let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
                     if isDark {
                         darkImage.draw(in: rect)
                     } else {
@@ -97,6 +97,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quitItem)
         
         statusItem.menu = menu
+        
+        // Restore saved profile states instantly on launch
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "savedANCIndex") == nil {
+            defaults.set(1, forKey: "savedANCIndex")
+            defaults.set("BA340166", forKey: "savedANCHex")
+            defaults.set("BA4300", forKey: "savedEQHex")
+        }
+        let savedANCIndex = defaults.integer(forKey: "savedANCIndex")
+        let savedANCHex = defaults.string(forKey: "savedANCHex") ?? "BA340166"
+        let savedEQHex = defaults.string(forKey: "savedEQHex") ?? "BA4300"
+        
+        slidingPill.setSelectedIndex(savedANCIndex, sendAction: false)
+        updateMenuState(ancHex: savedANCHex, eqHex: savedEQHex)
         updateProfileEnabling()
         
         btManager.onConnectionStateChanged = { [weak self] connected in
@@ -110,21 +124,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         btManager.onEventReceived = { [weak self] bytes in
             guard let self = self else { return }
             
+            let hexStr = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            let fm = FileManager.default
+            if let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                let appDir = appSupportURL.appendingPathComponent("BaseusController")
+                try? fm.createDirectory(at: appDir, withIntermediateDirectories: true, attributes: nil)
+                
+                let logURL = appDir.appendingPathComponent("hidden_events.log")
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    handle.seekToEndOfFile()
+                    handle.write((hexStr + "\n").data(using: .utf8)!)
+                    handle.closeFile()
+                } else {
+                    try? (hexStr + "\n").write(to: logURL, atomically: true, encoding: .utf8)
+                }
+            }
+            
             // ANC update
             if bytes[1] == 0x33 && bytes.count >= 4 {
                 let hex = String(format: "BA34%02X%02X", bytes[2], bytes[3])
                 if bytes[2] == 0x02 {
                     self.slidingPill.setSelectedIndex(0, sendAction: false)
+                    self.saveProfileState(ancIndex: 0, ancHex: hex, eqHex: nil)
                 } else if bytes[2] == 0x01 {
                     self.slidingPill.setSelectedIndex(1, sendAction: false)
+                    self.saveProfileState(ancIndex: 1, ancHex: hex, eqHex: nil)
                 }
                 self.updateMenuState(ancHex: hex)
                 self.updateProfileEnabling()
             } 
+            // Overall Device State (Battery, ANC Mode)
+            else if bytes[1] == 0x02 && bytes.count >= 6 {
+                let mode = bytes[5]
+                // Delay slightly to override the AA 33 profile dump that might arrive simultaneously on connect
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    if mode == 0x02 {
+                        self.slidingPill.setSelectedIndex(0, sendAction: false)
+                        self.saveProfileState(ancIndex: 0, ancHex: "BA3402FF", eqHex: nil)
+                    } else if mode == 0x01 {
+                        self.slidingPill.setSelectedIndex(1, sendAction: false)
+                        self.saveProfileState(ancIndex: 1, ancHex: nil, eqHex: nil)
+                    }
+                    self.updateProfileEnabling()
+                }
+            }
             // Spatial Audio / EQ update
             else if bytes[1] == 0x43 && bytes.count >= 3 {
                 let hex = String(format: "BA43%02X", bytes[2])
                 self.updateMenuState(eqHex: hex)
+                self.saveProfileState(ancIndex: nil, ancHex: nil, eqHex: hex)
             }
         }
     }
@@ -171,9 +219,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if slidingPill.selectedIndex == 0 {
             btManager.sendCommand(hexString: "BA3402FF")
             updateMenuState(ancHex: "BA3402FF")
+            saveProfileState(ancIndex: 0, ancHex: "BA3402FF", eqHex: nil)
         } else {
-            btManager.sendCommand(hexString: "BA340166")
-            updateMenuState(ancHex: "BA340166")
+            let lastANCHex = UserDefaults.standard.string(forKey: "savedANCHex") ?? "BA340166"
+            let hexToSend = lastANCHex.hasPrefix("BA3401") ? lastANCHex : "BA340166"
+            btManager.sendCommand(hexString: hexToSend)
+            updateMenuState(ancHex: hexToSend)
+            saveProfileState(ancIndex: 1, ancHex: hexToSend, eqHex: nil)
         }
         updateProfileEnabling()
     }
@@ -223,14 +275,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if hex.hasPrefix("BA34") {
                 if hex.hasPrefix("BA3401") {
                     slidingPill.setSelectedIndex(1, sendAction: false)
+                    saveProfileState(ancIndex: 1, ancHex: hex, eqHex: nil)
                 } else if hex == "BA3402FF" {
                     slidingPill.setSelectedIndex(0, sendAction: false)
+                    saveProfileState(ancIndex: 0, ancHex: hex, eqHex: nil)
                 }
                 updateMenuState(ancHex: hex)
                 updateProfileEnabling()
             } else if hex.hasPrefix("BA43") {
                 updateMenuState(eqHex: hex)
+                saveProfileState(ancIndex: nil, ancHex: nil, eqHex: hex)
             }
         }
+    }
+    
+    func saveProfileState(ancIndex: Int?, ancHex: String?, eqHex: String?) {
+        let defaults = UserDefaults.standard
+        if let ancIndex = ancIndex { defaults.set(ancIndex, forKey: "savedANCIndex") }
+        if let ancHex = ancHex { defaults.set(ancHex, forKey: "savedANCHex") }
+        if let eqHex = eqHex { defaults.set(eqHex, forKey: "savedEQHex") }
     }
 }

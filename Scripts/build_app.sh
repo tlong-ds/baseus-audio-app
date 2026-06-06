@@ -52,4 +52,7 @@ cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
 </plist>
 EOF
 
+# Sign the entire app bundle so macOS TCC remembers permissions
+codesign --force --deep -s "-" "$APP_DIR"
+
 echo "App built successfully at $APP_DIR"

@@ -58,7 +58,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if let services = peripheral.services {
             for service in services {
                 if service.uuid == serviceUUID {
-                    peripheral.discoverCharacteristics([charUUID], for: service)
+                    peripheral.discoverCharacteristics(nil, for: service)
                 }
             }
         }
@@ -75,7 +75,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                     peripheral.setNotifyValue(true, for: char)
                 }
             }
-            DispatchQueue.main.async {
+            
+            // Add a slight delay before triggering connected state to allow the headset to process the CCCD notification enablement
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.onConnectionStateChanged?(true)
             }
         }
