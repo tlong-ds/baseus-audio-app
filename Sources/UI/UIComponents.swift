@@ -98,6 +98,12 @@ class SlidingPillControl: NSControl {
         set { setSelectedIndex(newValue, sendAction: true) }
     }
     
+    override var isEnabled: Bool {
+        didSet {
+            self.alphaValue = isEnabled ? 1.0 : 0.4
+        }
+    }
+    
     func setSelectedIndex(_ index: Int, sendAction: Bool) {
         guard _selectedIndex != index else { return }
         _selectedIndex = index
@@ -129,7 +135,7 @@ class SlidingPillControl: NSControl {
         
         thumbLayer.frame = NSRect(x: initialX, y: thumbPadding, width: thumbHeight, height: thumbHeight)
         thumbLayer.cornerRadius = thumbHeight / 2
-        thumbLayer.backgroundColor = NSColor.white.cgColor
+        thumbLayer.backgroundColor = NSColor.controlAccentColor.cgColor
         thumbLayer.shadowColor = NSColor.black.cgColor
         thumbLayer.shadowOpacity = 0.2
         thumbLayer.shadowRadius = 2
@@ -165,9 +171,8 @@ class SlidingPillControl: NSControl {
     }
     
     private func updateIconColors() {
-        // iOS style: selected icon is colored (e.g. blue or dark), unselected is white/light
-        leftIcon.contentTintColor = selectedIndex == 0 ? .systemBlue : .white
-        rightIcon.contentTintColor = selectedIndex == 1 ? .systemBlue : .white
+        leftIcon.contentTintColor = .white
+        rightIcon.contentTintColor = .white
     }
     
     private func animateThumb(to index: Int) {
@@ -184,6 +189,7 @@ class SlidingPillControl: NSControl {
     }
     
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         // Run a local event loop to prevent the menu from tracking the drag and drawing its highlight pill
         var keepOn = true
         var currentEvent = event

@@ -23,6 +23,11 @@ if [ -f "Resources/MenubarIconTemplate.png" ]; then
     cp Resources/MenubarIconTemplate.png "$RESOURCES_DIR/"
 fi
 
+# Copy device image
+if [ -f "Resources/image.webp" ]; then
+    cp Resources/image.webp "$RESOURCES_DIR/"
+fi
+
 # Compile the Swift files
 swiftc $(find Sources -name "*.swift") -o "$MACOS_DIR/Baseus"
 
