@@ -260,7 +260,7 @@ class SwitchMenuItemView: NSView {
 class LiquidGlassSwitch: NSControl {
     private var visualEffectView: NSVisualEffectView!
     private var thumbLayer = CALayer()
-    private var fillLayer = CALayer()
+    private var borderLayer = CAShapeLayer()
     
     private var _isOn: Bool = false
     var isOn: Bool {
@@ -270,29 +270,52 @@ class LiquidGlassSwitch: NSControl {
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        self.wantsLayer = true
+        self.layer?.masksToBounds = false
         
         visualEffectView = NSVisualEffectView(frame: bounds)
         visualEffectView.material = .hudWindow
         visualEffectView.blendingMode = .withinWindow
         visualEffectView.state = .active
         visualEffectView.wantsLayer = true
-        visualEffectView.layer?.cornerRadius = frameRect.height / 2
-        visualEffectView.layer?.masksToBounds = true
+        
+        // Proper masking for visual effect view
+        let maskLayer = CAShapeLayer()
+        let path = CGPath(roundedRect: bounds, cornerWidth: bounds.height / 2, cornerHeight: bounds.height / 2, transform: nil)
+        maskLayer.path = path
+        visualEffectView.layer?.mask = maskLayer
         addSubview(visualEffectView)
         
-        fillLayer.frame = bounds
-        fillLayer.backgroundColor = NSColor.controlAccentColor.cgColor
-        fillLayer.opacity = 0
-        visualEffectView.layer?.addSublayer(fillLayer)
+        // Inner border for liquid glass depth
+        borderLayer.frame = bounds
+        borderLayer.path = path
+        borderLayer.fillColor = NSColor.clear.cgColor
+        borderLayer.strokeColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        borderLayer.lineWidth = 1.0
+        visualEffectView.layer?.addSublayer(borderLayer)
         
         let thumbHeight = frameRect.height - 4
         thumbLayer.frame = NSRect(x: 2, y: 2, width: thumbHeight, height: thumbHeight)
         thumbLayer.cornerRadius = thumbHeight / 2
         thumbLayer.backgroundColor = NSColor.white.cgColor
+        
+        // Liquid glass thumb shadow
         thumbLayer.shadowColor = NSColor.black.cgColor
-        thumbLayer.shadowOpacity = 0.2
-        thumbLayer.shadowRadius = 2
-        thumbLayer.shadowOffset = CGSize(width: 0, height: -1)
+        thumbLayer.shadowOpacity = 0.35
+        thumbLayer.shadowRadius = 3
+        thumbLayer.shadowOffset = CGSize(width: 0, height: -1.5)
+        
+        // Outer glow/shadow
+        let outerShadow = CALayer()
+        outerShadow.frame = thumbLayer.bounds
+        outerShadow.cornerRadius = thumbHeight / 2
+        outerShadow.backgroundColor = NSColor.clear.cgColor
+        outerShadow.shadowColor = NSColor.white.cgColor
+        outerShadow.shadowOpacity = 0.5
+        outerShadow.shadowRadius = 1
+        outerShadow.shadowOffset = .zero
+        thumbLayer.addSublayer(outerShadow)
+        
         visualEffectView.layer?.addSublayer(thumbLayer)
         
         updateAppearance(animated: false)
@@ -309,22 +332,22 @@ class LiquidGlassSwitch: NSControl {
     private func updateAppearance(animated: Bool) {
         let thumbHeight = bounds.height - 4
         let targetX = _isOn ? bounds.width - thumbHeight - 2 : 2
-        let targetOpacity: Float = _isOn ? 0.7 : 0.0
         
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
+                context.duration = 0.25
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 self.thumbLayer.frame.origin.x = targetX
-                self.fillLayer.opacity = targetOpacity
             }
         } else {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             self.thumbLayer.frame.origin.x = targetX
-            self.fillLayer.opacity = targetOpacity
             CATransaction.commit()
         }
+        
+        // Changing material must be done outside the animation context or it won't apply properly
+        self.visualEffectView.material = self._isOn ? .selection : .hudWindow
     }
     
     override func mouseDown(with event: NSEvent) {

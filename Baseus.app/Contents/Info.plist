@@ -20,5 +20,7 @@
     <string>AccentColor</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Needed to connect to and control Baseus headphones</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Needed to connect to and control Baseus headphones</string>
 </dict>
 </plist>
