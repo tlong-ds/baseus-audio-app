@@ -1,4 +1,4 @@
-# Baseus Controller Mac
+# Baseus Audio App (macOS)
 
 A macOS application to connect to and control Baseus headphones, featuring spatial audio, noise cancellation profiles, and more directly from your Mac's menu bar.
 
