@@ -1,4 +1,5 @@
 import Cocoa
+import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -9,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var slidingPill: SlidingPillControl!
     var bassBoostSwitch: SwitchMenuItemView!
     var ldacSwitch: SwitchMenuItemView!
+    var startAtLoginSwitch: SwitchMenuItemView!
     
     var lastBassBoostTime = Date.distantPast
     var lastSpatialTime = Date.distantPast
@@ -106,6 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         bassBoostSwitch = addSwitchToggle(title: "Bass Boost", action: #selector(bassBoostChanged))
         ldacSwitch = addSwitchToggle(title: "LDAC", action: #selector(ldacChanged))
+        
+        startAtLoginSwitch = addSwitchToggle(title: "Start at Login", action: #selector(startAtLoginChanged))
+        startAtLoginSwitch.isOn = SMAppService.mainApp.status == .enabled
         
         menu.addItem(NSMenuItem.separator())
         
@@ -364,5 +369,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isOn = ldacSwitch.isOn
         UserDefaults.standard.set(isOn, forKey: "savedLDAC")
         btManager.sendCommand(hexString: isOn ? "BA2401" : "BA2400")
+    }
+    
+    @objc func startAtLoginChanged() {
+        let service = SMAppService.mainApp
+        do {
+            if startAtLoginSwitch.isOn {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            print("Failed to update SMAppService: \(error)")
+            // Revert the visual switch state if it failed
+            startAtLoginSwitch.isOn = !startAtLoginSwitch.isOn
+        }
     }
 }

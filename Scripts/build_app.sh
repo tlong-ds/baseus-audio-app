@@ -50,11 +50,13 @@ cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
     <string>AccentColor</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Needed to connect to and control Baseus headphones</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Needed to connect to and control Baseus headphones</string>
 </dict>
 </plist>
 EOF
 
 # Sign the entire app bundle so macOS TCC remembers permissions
-codesign --force --deep -s "-" "$APP_DIR"
+codesign --force --deep -s "-" --identifier "com.bunnypro.Baseus" "$APP_DIR"
 
 echo "App built successfully at $APP_DIR"
